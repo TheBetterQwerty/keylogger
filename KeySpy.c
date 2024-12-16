@@ -2,9 +2,8 @@
  * Keylogger Created by Qwerty
  * Works only on Windows
  * 
- * This program captures every keystroke typed on the system by hooking into low-level keyboard events.
- * It records the pressed keys and can save them to a log file or transmit them to a remote server.
- * This works by using Windows API functions like SetWindowsHookEx to intercept keyboard input events.
+ * This program captures every keystroke typed on the system.
+ * It records the pressed keys and can save them to a log file
  * 
  * Use responsibly and with consent. Unauthorized use is illegal.
  **/
