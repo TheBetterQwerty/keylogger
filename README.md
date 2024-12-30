@@ -1,84 +1,68 @@
-# Keylogger - C Program (Using `GetAsyncKeyState`)
+# Keylogger by Qwerty
 
-## Description
-
-This is a simple **keylogger** written in C that uses the `GetAsyncKeyState` Windows API function to monitor and log keystrokes typed on the system. It captures key events by continuously checking the state of keys using `GetAsyncKeyState`. The program stores the captured keystrokes in a buffer and outputs them to a file.
-
-> **Important**: This program is **malicious in nature** and should **only be used with full consent** from all parties involved. Unauthorized use of this software is **illegal** and could result in severe legal consequences.
-
-This program is intended purely for educational purposes. I plan to release a more advanced version using the `SetWindowsHookEx` API for a more efficient and comprehensive keylogging solution.
+This program is a **Windows-based keylogger** that captures every keystroke typed on the system by hooking into low-level keyboard events. The keylogger records the pressed keys and can save them to a log file or transmit them to a remote server. It works by utilizing Windows API functions like `SetWindowsHookEx` to intercept keyboard input events.
 
 ## Features
-- **Keylogging**: Captures every keystroke on the system.
-- **Log to File**: Logs the captured keystrokes into a text file (`Keylogger.log`).
-- **Real-time Keystroke Capture**: Displays typed keys on the console as they are pressed.
-- **Forground Window Capture**: Displays the current tab user is in
-  
-## Disclaimer 
 
-By downloading and running this program, you acknowledge and accept the following:
-- **Only use this software with explicit consent** from the user whose keyboard activity you are monitoring.
-- **This program should only be used in controlled, ethical environments** such as personal testing on your own system or educational purposes.
-- **Unauthorized use or deployment of this keylogger is illegal**, and you are fully responsible for any consequences arising from its misuse.
-- The author of this program does not encourage or condone any illegal activities involving this software.
+- Captures every keystroke typed on the system.
+- Records keypresses in real-time to a log file (`Keylogger.log`).
+- Logs the active window's title to associate key presses with the corresponding application.
+- Supports basic text input (does **not** yet support special characters).
+- Logs activity with timestamps.
 
 ## How It Works
 
-### Overview:
-This keylogger uses `GetAsyncKeyState` to continuously check the state of each key on the keyboard. If a key is pressed (detected by `GetAsyncKeyState`), the key's virtual key code is converted into a character and stored. The program writes these keystrokes to a file named `Keylogger.log`.
+1. **Keyboard Hooking**: 
+   - The program hooks into the system's keyboard events using `SetWindowsHookEx`, which intercepts low-level keyboard events such as key presses and releases.
+   
+2. **Buffer Management**: 
+   - Keystrokes are stored in a buffer, which is periodically written to a log file. The buffer is reset once the log is saved.
 
-### Keylogging Process:
-1. The program starts and continuously checks the state of every key on the system using `GetAsyncKeyState`.
-2. When a key is pressed, it is logged in real time and printed to the console.
-3. The keystrokes are also written into a buffer.
-4. Once a key is released, the program resets the state for that key.
-5. The program writes the captured keys to the log file every 10 keystrokes or when the buffer is full.
+3. **Window Title Tracking**: 
+   - The program logs the title of the currently active window (foreground process) when keystrokes are recorded, so you know which application was active when the keys were pressed.
 
-### Keystroke Logging:
-- The program checks the state of common keys (letters, numbers, and special characters) using their virtual key codes.
-- It handles backspaces and will remove the last logged character if the Backspace key is pressed.
-- The keystrokes are saved in a log file called `Keylogger.log`.
+4. **Logging Format**:
+   - Timestamps and the foreground window's title are logged along with the keystrokes in `Keylogger.log`.
+
+## Limitations
+
+- Special characters (e.g., `@`, `#`, `$`, etc.) may not be captured correctly. This is an ongoing issue and will need additional handling to fix.
+- The program works only on **Windows**.
 
 ## Usage
 
-### 1. **Compilation**:
-To compile the program, use a C compiler that supports the Windows API, such as **MinGW** or **Microsoft Visual Studio**.
+### Running the Keylogger
+To run the program, compile and execute it on a Windows machine. When launched, it will:
 
-Example using GCC (MinGW):
-```bash
-gcc keylogger.c -o keylogger.exe
+- Start a listener thread that captures keystrokes.
+- Start a writer thread that writes captured keystrokes to a log file.
+- Continuously log keypresses and active window titles to `Keylogger.log`.
+
+The program will create a log file in the same directory with the following format:
+
+```
+*************************************
+Started on 12/30/2024 at 12:30:00
+[ Notepad ] : Hello World!
+[ Chrome ] : This is a test.
 ```
 
-### 2. **Running the Program**:
-Run the program using the command prompt. The keylogger will start capturing keystrokes and saving them in the `Keylogger.log` file.
+### Log File Location
+The log file will be saved as `Keylogger.log` in the current working directory where the program is executed.
 
-```bash
-keylogger.exe
-```
+### Important Notes
+- **Use Responsibly**: This program is meant for educational purposes only. Unauthorized use of keyloggers is illegal and unethical.
+- **Run with Consent**: Make sure you have the consent of the user or owner of the machine on which this software is running.
+- **Not for Malicious Use**: The author does **not** endorse the use of this software for malicious purposes.
 
-### 3. **Log File**:
-After the program has been running for a while, you can open the `Keylogger.log` file to view the captured keystrokes.
+## Known Issues
+- **Special Character Handling**: The keylogger may fail to capture special characters correctly. This is a known limitation in the current version of the program.
+  
+## License
 
-> **Important**: The file will store sensitive information (such as typed passwords), so handle the log file with care.
-
-## Future Version with `SetWindowsHookEx`
-
-In the next version of this keylogger, I plan to switch from using `GetAsyncKeyState` to `SetWindowsHookEx`. 
-
-The reasons for this transition are:
-- **Global Keylogging**: `SetWindowsHookEx` provides a more efficient and reliable way to capture keystrokes across all applications, even when the program isn't the foreground application.
-- **Event-based Capturing**: `SetWindowsHookEx` works by hooking into system events, making it more resource-efficient than continuously polling the state of all keys.
-- **Better Performance**: With `SetWindowsHookEx`, we will be able to handle keystrokes as events, reducing CPU load and improving performance.
-
-The new version will be more advanced and allow for more robust keylogging, but will also continue to prioritize the **ethical use of the software**.
-
-## Code License and Acknowledgements
-
-- This keylogger was written by Qwerty for educational purposes only.
-- If you intend to use this program in any other way, you must first obtain explicit permission from the user whose system you are logging.
+This code is for educational purposes only. Use responsibly and ensure that you have proper authorization before running this software on any system. Unauthorized use is illegal and punishable by law.
 
 ---
 
-### Final Reminder
-
-Please **use this program responsibly**. Always ensure that you have the necessary permissions and are abiding by all applicable laws and ethical guidelines.
+**Created by**: Qwerty  
+**Date**: 12/30/2024
