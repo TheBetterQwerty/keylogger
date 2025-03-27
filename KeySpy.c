@@ -26,7 +26,7 @@
 #define THREADS 2
 #define LOG_FILE "Keylogger.log"
 
-char *buffer = NULL;
+char* buffer = NULL;
 int buffer_ptr = 0;
 CRITICAL_SECTION cs;
 
